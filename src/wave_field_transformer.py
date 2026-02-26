@@ -130,10 +130,10 @@ class FieldInterferenceModule(nn.Module):
         # V3.3: diverse temperature init — sharp vs soft for different modules
         self.interference_temperature = nn.Parameter(torch.tensor(initial_temperature))
         
-        # Interference gate: controls constructive vs destructive
         self.interference_gate = nn.Linear(embedding_dim * 2, embedding_dim)
+        nn.init.normal_(self.interference_gate.weight, mean=0.0, std=0.01)
+        nn.init.constant_(self.interference_gate.bias, 0.0)
         
-        # Global field summary (causal cumulative mean)
         self.compress = nn.Linear(embedding_dim, embedding_dim // 4)
         self.expand = nn.Linear(embedding_dim // 4, embedding_dim)
         
