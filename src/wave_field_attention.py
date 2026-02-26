@@ -39,7 +39,10 @@ class WaveFieldAttention(nn.Module):
         self.embedding_dim = embedding_dim
         self.num_heads = num_heads
         self.head_dim = embedding_dim // num_heads
-        self.field_size = field_size
+        
+        safe_field_size = max(field_size, max_seq_len * 4)
+        self.field_size = safe_field_size
+        
         self.max_seq_len = max_seq_len
         self.device = device
         
@@ -102,11 +105,14 @@ class WaveFieldAttention(nn.Module):
         
         return torch.fft.rfft(kernels, n=2 * G)
     
-    def _wave_convolve(self, field, kernel_fft):
-        """Per-head wave convolution via zero-padded FFT (linear convolution)."""
+    def _wave_convolve(self, field, kernel_fft, active_length=None):
         B, H, G, D = field.shape
-        pad_size = 2 * G
         
+        if active_length is not None:
+            pad_size = active_length + G
+        else:
+            pad_size = 2 * G
+            
         field_t = field.permute(0, 3, 1, 2).reshape(B * D, H, G)
         field_fft = torch.fft.rfft(field_t, n=pad_size)
         convolved_fft = field_fft * kernel_fft.unsqueeze(0)
@@ -195,7 +201,8 @@ class WaveFieldAttention(nn.Module):
         
         # WAVE CONVOLUTION
         kernel_fft = self._build_wave_kernels(x.device)
-        field = self._wave_convolve(field, kernel_fft)
+        active_length = int(field_pos_float[-1].item()) + 2
+        field = self._wave_convolve(field, kernel_fft, active_length=active_length)
         
         # STATIC COUPLING
         field = self._apply_field_coupling(field)
